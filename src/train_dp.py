@@ -1,3 +1,11 @@
+"""Differentially private training loops using Opacus.
+
+Provides training functions for DP-SGD with an RDP accountant, including a
+baseline variant and an extended variant with scheduler and label smoothing
+support. Each function returns the (potentially updated) model and a metrics
+dictionary including test results and the achieved privacy epsilon.
+"""
+
 from typing import Dict, Any, Tuple
 import time
 import torch
@@ -11,6 +19,24 @@ from .utils import accuracy, evaluate
 
 def train_dp_sgd(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader, test_loader: DataLoader,
                   device: torch.device, cfg: DPConfig) -> Tuple[nn.Module, Dict[str, Any]]:
+    """Train a model with DP-SGD using Opacus and report metrics.
+
+    Uses an RDP accountant to estimate the privacy budget after each epoch and
+    tracks the best validation accuracy checkpoint, which is restored before
+    test evaluation.
+
+    Args:
+        model: PyTorch model to train.
+        train_loader: Training dataloader.
+        val_loader: Validation dataloader.
+        test_loader: Test dataloader.
+        device: Torch device (e.g., ``torch.device('cuda')``).
+        cfg: DP training configuration parameters.
+
+    Returns:
+        Tuple of ``(model, metrics)`` where ``metrics`` includes ``test_loss``,
+        ``test_acc``, and ``epsilon``.
+    """
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
@@ -65,6 +91,24 @@ def train_dp_sgd(model: nn.Module, train_loader: DataLoader, val_loader: DataLoa
 
 def train_dp_sgd_v2(model: nn.Module, train_loader: DataLoader, val_loader: DataLoader, test_loader: DataLoader,
                      device: torch.device, cfg: DPConfigV2) -> Tuple[nn.Module, Dict[str, Any]]:
+    """Train a model with DP-SGD (extended) including scheduler and smoothing.
+
+    Extends the base DP-SGD loop with optional learning-rate scheduling and
+    label smoothing. Tracks and restores the best validation checkpoint prior
+    to test evaluation. Uses an RDP accountant to report ``epsilon``.
+
+    Args:
+        model: PyTorch model to train.
+        train_loader: Training dataloader.
+        val_loader: Validation dataloader.
+        test_loader: Test dataloader.
+        device: Torch device.
+        cfg: Extended DP configuration parameters.
+
+    Returns:
+        Tuple of ``(model, metrics)`` where ``metrics`` includes ``test_loss``,
+        ``test_acc``, ``epsilon``, and ``best_val_acc``.
+    """
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 

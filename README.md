@@ -46,8 +46,7 @@ $ pytest -q
 
 
 ### Next up
-1) Implement script + unit tests for - Preprocess dataset 
-2) Implement script + unit tests for - Train the model (baseline and DP)
+1) implement gap test for `docs/test_docs/test_data.md`, `docs/test_docs/test_utils.md`, `docs/test_docs/test_train_baseline.md`
 3) Implement notebook #1 for guided data preprocessing and stats
 4) Implement notebook #2 for training baseline and DP‑SGD end‑to‑end
 
