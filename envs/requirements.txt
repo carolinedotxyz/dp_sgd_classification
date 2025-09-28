@@ -1,0 +1,10 @@
+pandas~=2.2.2
+matplotlib~=3.9.2
+Pillow~=10.4.0
+numpy~=1.26.4
+tqdm~=4.66.5
+torch>=2.2
+torchvision>=0.17
+opacus>=1.4
+kagglehub>=0.2.5
+pytest>=7.4.0
