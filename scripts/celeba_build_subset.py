@@ -551,12 +551,40 @@ def build_subset(
 
 		# Iterate chosen rows and add
 		kept_pos = kept_neg = 0
+		selected_ids = set()
 		for _, row in chosen.iterrows():
-			if try_add(row, int(row["label"])):
-				if int(row["label"]) == 1:
+			label_val = int(row["label"])
+			if try_add(row, label_val):
+				selected_ids.add(row["image_id"]) 
+				if label_val == 1:
 					kept_pos += 1
 				else:
 					kept_neg += 1
+
+		# Backfill if missing files reduced counts and backfill is enabled
+		if fill_missing and (kept_pos < desired or kept_neg < desired):
+			def backfill_for_label(target_label: int, need: int) -> int:
+				if need <= 0:
+					return 0
+				candidates = (
+					sub[(sub["label"] == target_label) & (~sub["image_id"].isin(selected_ids))]
+					.sample(frac=1.0, random_state=seed + (137 if target_label == 1 else 138))
+					.reset_index(drop=True)
+				)
+				added = 0
+				for _, crow in candidates.iterrows():
+					if try_add(crow, target_label):
+						selected_ids.add(crow["image_id"]) 
+						added += 1
+						if added >= need:
+							break
+				return added
+
+			add_pos = backfill_for_label(1, desired - kept_pos)
+			kept_pos += add_pos
+			add_neg = backfill_for_label(0, desired - kept_neg)
+			kept_neg += add_neg
+
 		print(f"  Kept {kept_pos} pos, {kept_neg} neg (total {kept_pos + kept_neg})")
 		if kept_pos < desired or kept_neg < desired:
 			print(f"  Warning: could not reach desired cap for split '{pname}'. Available pos={kept_pos}, neg={kept_neg}.")

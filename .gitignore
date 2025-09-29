@@ -3,4 +3,10 @@ __pycache__/
 
 # ignore data folder 
 data/celeba/
+
+# ignore run result folder 
 runs/
+
+# ignore original README.md
+original_README.md
+
