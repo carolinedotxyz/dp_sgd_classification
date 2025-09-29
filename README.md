@@ -78,4 +78,3 @@ pytest -q
 2) Implement notebook #1 for guided data preprocessing and stats
 3) Implement notebook #2 for end‑to‑end training (baseline and DP‑SGD)
 
-If you get stuck, assume less is broken than it seems. Add a seam, take a small step, and make the next change safe.
