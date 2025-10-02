@@ -35,6 +35,9 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - - docstrings for `scripts/celeba_analyze.py`, `scripts/celeba_build_subset.py`, `scripts/celeba_centering.py`, `scripts/celeba_preprocesing.py`
 - docstrings for `src/config.py`, `src/data.py`, `src/model.py`, `src/sweeps.py`, `src/train_baseline.py`
 
+[10/01/2025]
+- Refactor workflow and enhance documentation: Moved reusable functions to `src/celeba_workflow.py`, added classroom notebook `notebooks/celeba_eyeglasses_workflow.ipynb`, and created accompanying documentation. Relocated legacy notebook and updated README 
+
 ### Deprecated
 
 ### Removed
