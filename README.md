@@ -20,21 +20,23 @@ In short: simple ideas, executed well. Clarity over complexity.
 - **Seams for experimentation**: clear points to swap samplers, optimizers, or transforms.
 - **Tight feedback**: fast dry‑runs and tests before long training jobs.
 
-### First run (quick start)
-1) Create the environment
+### Install (editable) and quick start
+1) Create the environment (or use your own)
 ```bash
-conda env create -f env/environment.yml
-conda activate dp-sgd-py312-env
+python -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -e .[dev]
 ```
 
 2) Get the data (CelebA)
 - Download from [Kaggle: CelebA Dataset](https://www.kaggle.com/datasets/jessicali9530/celeba-dataset) and place it under `data/celeba/archive/`.
 - See `docs/data/subset_strategy.md` for the exact files and filenames expected.
 
-3) Build a balanced subset
+3) Build a balanced subset (CLI)
 - Pick a target size (e.g., 20,000). Splits are 80/10/10 and balanced 50/50 by class. Missing images are backfilled so you can hit requested caps when alternatives exist.
 ```bash
-python scripts/celeba_build_subset.py \
+celeba-build-subset \
   --archive-dir data/celeba/archive \
   --attribute Eyeglasses \
   --output-dir data/celeba/subsets/eyeglasses_balanced_20k \
@@ -45,7 +47,7 @@ python scripts/celeba_build_subset.py \
 
 - Dry‑run to preview achievable counts without writing files:
 ```bash
-python scripts/celeba_build_subset.py \
+celeba-build-subset \
   --archive-dir data/celeba/archive \
   --attribute Eyeglasses \
   --output-dir /tmp/dry_run --dry-run \
@@ -59,14 +61,42 @@ python scripts/celeba_build_subset.py \
 - Strict mode (no top‑up/backfill for missing files): add `--no-fill-missing`
 
 4) Preprocess the images (recommended before training)
-- You can step through `step1_data_preprocess.ipynb` interactively, or run the script:
+- Classroom notebook: `notebooks/celeba_eyeglasses_workflow.ipynb` (see `docs/notebooks/celeba_eyeglasses_workflow.md`). Or run the script:
 ```bash
-python scripts/celeba_preprocess.py \
+celeba-preprocess \
   --subset-root data/celeba/subsets/eyeglasses_balanced_20k \
   --out-root data/celeba/processed/eyeglasses_balanced_20k_64 \
   --size 64 --center-crop --normalize-01 --compute-stats
 ```
 This writes `processed_index.csv` and `stats/stats.json` with `train_mean` and `train_std` used by the loaders.
+
+### Using the library in notebooks
+Prefer importing from `src` (single source of truth). Example:
+```python
+from src import WorkflowConfig, review_archive, build_balance_display_table
+from src import analyze_processed, preprocess_images
+
+cfg = WorkflowConfig(
+    archive_dir=Path("data/celeba/archive"),
+    images_root=Path("data/celeba/archive/img_align_celeba/img_align_celeba"),
+    output_dir=Path("data/celeba/subsets/eyeglasses_balanced_20k"),
+    subset_root=Path("data/celeba/subsets/eyeglasses_balanced_20k"),
+    out_root=Path("data/celeba/processed/eyeglasses_balanced_20k_64"),
+)
+review_archive(cfg)
+preprocess_images(cfg)
+analyze_processed(cfg)
+```
+
+### Module map (public)
+- `src/celeba_io.py`: archive validation, merge/load CSVs, write outputs
+- `src/celeba_index.py`: processed/subset index read/augment/discover
+- `src/celeba_analysis.py`: balance summaries, comparisons, display tables
+- `src/celeba_diagnostics.py`: sampling, image size/channel stats
+- `src/celeba_plots.py`: domain plotting wrappers
+- `src/celeba_workflow.py`: orchestration for build/preprocess/analyze
+- `src/celeba_builder.py`: programmatic subset builder
+- `src/celeba_preprocess_core.py`: programmatic preprocessing
 
 ### Tests
 ```bash

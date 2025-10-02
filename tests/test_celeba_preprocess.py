@@ -7,15 +7,17 @@ import pandas as pd
 import pytest
 from PIL import Image
 
-from scripts.celeba_preprocess import (
+from src.celeba_preprocess_core import (
     ImageRecord,
-    discover_subset,
-    center_crop_to_square,
+    center_square_crop as center_crop_to_square,
     resize_image,
-    process_image,
     compute_mean_std,
     write_index,
-    write_stats,
+    write_json as write_stats,
+)
+from scripts.celeba_preprocess import (
+    discover_subset,
+    process_image,
     summarize,
     parse_args,
     main,

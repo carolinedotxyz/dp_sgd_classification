@@ -6,10 +6,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from src.celeba_io import validate_archive_dir, load_archive_data
+from src.celeba_analysis import compute_balance_from_df as compute_balance
 from scripts.celeba_analyze import (
-    validate_archive_dir,
-    load_data,
-    compute_balance,
     save_plots,
     parse_args,
     main,
@@ -86,7 +85,7 @@ def test_load_data_merge_and_types(tmp_path: Path):
     attrs.to_csv(attrs_csv, index=False)
     parts.to_csv(parts_csv, index=False)
 
-    df = load_data(str(attrs_csv), str(parts_csv))
+    df = load_archive_data(str(attrs_csv), str(parts_csv))
     # Row with non-numeric A is dropped
     assert df.shape[0] == 2
     # Partition name added

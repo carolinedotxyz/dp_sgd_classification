@@ -6,9 +6,7 @@ import pandas as pd
 import pytest
 from PIL import Image
 
-from scripts.celeba_build_subset import (
-    build_subset,
-)
+from src.celeba_builder import build_subset
 
 
 def _write_img(p: Path, color):

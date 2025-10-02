@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dp-sgd-classification"
+version = "0.1.0"
+description = "Educational DP-SGD image classification pipeline on CelebA"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+  { name = "Caroline" }
+]
+dependencies = [
+  "numpy",
+  "pandas",
+  "torch",
+  "torchvision",
+  "opacus",
+  "Pillow",
+  "tqdm",
+  "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[project.urls]
+Homepage = "https://github.com/" 
+
+[project.scripts]
+celeba-build-subset = "scripts.celeba_build_subset:main"
+celeba-preprocess = "scripts.celeba_preprocess:main"
+celeba-analyze = "scripts.celeba_analyze:main"
+celeba-centering = "scripts.celeba_centering:main"
+
+
