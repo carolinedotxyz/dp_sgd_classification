@@ -5,14 +5,76 @@ display-only constants to keep notebooks minimal and focused on analysis.
 """
 
 from typing import Dict, Optional
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from contextlib import contextmanager
+
+@contextmanager
+def viz_style(dpi: int = 150, base: int = 12, title: int = 18, label: int = 12):
+    """Temporary Matplotlib style for consistent visuals.
+
+    Usage:
+        with viz_style():
+            ... plotting code ...
+    """
+    import matplotlib.pyplot as plt  # lazy import
+    old = plt.rcParams.copy()
+    try:
+        plt.rcParams.update({
+            "figure.dpi": dpi,
+            "axes.grid": True,
+            "grid.alpha": 0.3,
+            "axes.titlesize": title,
+            "axes.labelsize": label,
+            "xtick.labelsize": base,
+            "ytick.labelsize": base,
+            "legend.fontsize": base,
+            "figure.constrained_layout.use": True,
+        })
+        yield
+    finally:
+        try:
+            import matplotlib.pyplot as plt  # re-import to be safe in some envs
+            plt.rcParams.update(old)
+        except Exception:
+            pass
+
+def fmt_int(x) -> str:
+    try:
+        return f"{int(x):,}"
+    except Exception:
+        return ""
+
+def fmt_float(x, nd: int = 3) -> str:
+    try:
+        return f"{float(x):.{int(nd)}f}"
+    except Exception:
+        return ""
+
+def percent_formatter():
+    from matplotlib.ticker import PercentFormatter  # lazy import
+    return PercentFormatter(xmax=1.0, decimals=2)
+
+def add_bar_labels(ax, fmt=lambda v: f"{v:.3f}") -> None:
+    """Add small value labels above bars on the provided axis."""
+    for p in getattr(ax, "patches", []):
+        try:
+            v = p.get_height()
+            ax.annotate(
+                fmt(v),
+                (p.get_x() + p.get_width() / 2.0, v),
+                ha="center",
+                va="bottom",
+                xytext=(0, 3),
+                textcoords="offset points",
+            )
+        except Exception:
+            continue
 
  
-
-
 def _h(title: str, level: int = 4, subtitle: Optional[str] = None) -> None:
     """Render a simple header block in notebooks."""
     from IPython.display import display, HTML  # lazy import for non-notebook contexts
@@ -159,6 +221,7 @@ __all__ = [
     "_has_variance",
     "highlight_drift",
     "bold_extremes",
+    "_relpath",
     "ATTR_RENAME",
     "PREFERRED_FOCUS",
 ]
@@ -219,5 +282,113 @@ def compare_saved_stats_and_display(stats_path, m_a, s_a) -> None:
     else:
         _h("Saved stats.json (processed)")
         display(HTML("<div style='color:#6b7280'>stats.json not found; skipping saved-stats comparison.</div>"))
+
+
+def _relpath(p: "str | Path") -> str:
+    """Return a path relative to the repository root when possible.
+
+    Falls back to CWD-relative, else returns the original string.
+    The repo root is detected by searching upward from CWD for
+    one of: ``pyproject.toml``, ``.git`` directory, or ``src``.
+    """
+    try:
+        path = Path(p).resolve()
+        cwd = Path.cwd().resolve()
+        # Detect repo root from CWD
+        repo_root: Path | None = None
+        for candidate in [cwd] + list(cwd.parents):
+            if (candidate / "pyproject.toml").exists() or (candidate / ".git").exists() or (candidate / "src").exists():
+                repo_root = candidate
+                break
+        if repo_root and str(path).startswith(str(repo_root)):
+            return str(path.relative_to(repo_root))
+        if str(path).startswith(str(cwd)):
+            return str(path.relative_to(cwd))
+        return str(path)
+    except Exception:
+        return str(p)
+
+# ---------- Styled tables for counts/deltas ----------
+
+def style_counts(df: "pd.DataFrame"):
+    """Return a pandas Styler for a counts/delta table with readable formatting.
+
+    Expects columns similar to the balance comparison output: totals and pos% before/after
+    plus a Δ column in percentage points.
+    """
+    fmt_map = {}
+    for col in df.columns:
+        name = str(col)
+        if name.startswith("total"):
+            fmt_map[name] = fmt_int
+        elif name.startswith("pos%"):
+            fmt_map[name] = "{:.1f}%"
+        elif "Δ" in name:
+            fmt_map[name] = "{:+.1f}"
+    styler = (
+        df.style
+        .format(fmt_map)
+        .set_table_styles([{"selector": "th", "props": [("font-weight", "600")]}])
+    )
+    # Light highlight for any non-zero drift
+    delta_cols = [c for c in df.columns if "Δ" in str(c)]
+    for c in delta_cols:
+        try:
+            styler = styler.highlight_between(subset=[c], left=0.001, right=999, color="#fff2cc")
+            styler = styler.highlight_between(subset=[c], left=-999, right=-0.001, color="#ffe6e6")
+        except Exception:
+            continue
+    return styler
+
+
+def style_balance_counts(balance_df: "pd.DataFrame"):
+    """Return a styled counts-by-split/class table with Δ vs 50%.
+
+    Expects columns like class counts plus 'total' and either 'pos_ratio' [0,1]
+    or 'pos_%' [0,100]. Computes pos_% and Δ from 50% (pp) if needed, and
+    formats with thousands separators and fixed decimals. Highlights non-zero Δ.
+    """
+    import pandas as _pd
+    df = balance_df.copy()
+    if "pos_%" not in df.columns:
+        if "pos_ratio" in df.columns:
+            df["pos_%"] = (_pd.to_numeric(df["pos_ratio"], errors="coerce") * 100.0).astype(float)
+        else:
+            if "eyeglasses" in df.columns and "total" in df.columns:
+                df["pos_%"] = (_pd.to_numeric(df["eyeglasses"], errors="coerce") / _pd.to_numeric(df["total"], errors="coerce") * 100.0).astype(float)
+    df["Δ from 50% (pp)"] = df["pos_%"].astype(float) - 50.0 if "pos_%" in df.columns else _pd.Series(dtype=float)
+    ordered = []
+    for c in ["eyeglasses", "no_eyeglasses"]:
+        if c in df.columns:
+            ordered.append(c)
+    if "total" in df.columns:
+        ordered.append("total")
+    for c in ["pos_%", "Δ from 50% (pp)"]:
+        if c in df.columns:
+            ordered.append(c)
+    for c in df.columns:
+        if c not in ordered:
+            ordered.append(c)
+    show = df[ordered]
+    fmt = {}
+    for c in show.columns:
+        if c in ("eyeglasses", "no_eyeglasses", "total"):
+            fmt[c] = fmt_int
+        elif c == "pos_%":
+            fmt[c] = "{:.1f}%"
+        elif c == "Δ from 50% (pp)":
+            fmt[c] = "{:+.1f}"
+    styler = (
+        show.style
+        .format(fmt)
+        .set_table_styles([{"selector": "th", "props": [("font-weight", "600")]}])
+    )
+    if "Δ from 50% (pp)" in show.columns:
+        try:
+            styler = styler.highlight_between(subset=["Δ from 50% (pp)"], left=0.001, right=999, color="#fff2cc")
+            styler = styler.highlight_between(subset=["Δ from 50% (pp)"], left=-999, right=-0.001, color="#ffe6e6")
+        except Exception:
+            pass
+    return styler
 
 

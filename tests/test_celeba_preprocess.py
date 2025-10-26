@@ -215,3 +215,118 @@ def test_main_integration_with_stats(tmp_path: Path):
     assert sm["num_images"] == 2
 
 
+def test_manifest_written_with_expected_columns(tmp_path: Path):
+    # Create minimal subset
+    subset = tmp_path / "subset"
+    (subset / "train" / "eyeglasses").mkdir(parents=True, exist_ok=True)
+    _write_rgb(subset / "train" / "eyeglasses" / "a.jpg", size=(16, 16))
+    idx = pd.DataFrame([
+        {"image_id": "a.jpg", "partition_name": "train", "class_name": "eyeglasses", "label": 1, "dest_path": "train/eyeglasses/a.jpg"},
+    ])
+    idx.to_csv(subset / "subset_index_eyeglasses.csv", index=False)
+
+    out_root = tmp_path / "processed"
+    rc = main([
+        "--subset-root", str(subset),
+        "--out-root", str(out_root),
+        "--size", "16",
+        "--center-crop",
+        "--compute-stats",
+        "--normalize-01",
+    ])
+    assert rc == 0
+    manifest = out_root / "stats" / "manifest.csv"
+    assert manifest.exists()
+    # Read manifest and check schema and content
+    import csv
+    with open(manifest, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        cols = reader.fieldnames or []
+    expected_cols = ["image_id","partition_name","class_name","source_path","dest_path","sha256","size_bytes"]
+    for c in expected_cols:
+        assert c in cols
+    assert len(rows) >= 1
+    r0 = rows[0]
+    assert len(r0.get("sha256", "")) == 64
+    assert int(r0.get("size_bytes", 0)) > 0
+    # dest_path should resolve under out_root
+    from pathlib import Path as _P
+    dp = _P(out_root) / r0["dest_path"]
+    assert dp.exists()
+
+
+def test_skip_log_created_on_corrupt_image(tmp_path: Path):
+    # Create subset with a corrupt (zero-byte) image to force a skip
+    subset = tmp_path / "subset"
+    dtrain = subset / "train" / "eyeglasses"
+    dtrain.mkdir(parents=True, exist_ok=True)
+    bad = dtrain / "bad.jpg"
+    bad.write_bytes(b"")  # zero-byte invalid image
+    # Also add one good image so processing proceeds
+    _write_rgb(dtrain / "good.jpg", size=(16, 16))
+    idx = pd.DataFrame([
+        {"image_id": "bad.jpg", "partition_name": "train", "class_name": "eyeglasses", "label": 1, "dest_path": "train/eyeglasses/bad.jpg"},
+        {"image_id": "good.jpg", "partition_name": "train", "class_name": "eyeglasses", "label": 1, "dest_path": "train/eyeglasses/good.jpg"},
+    ])
+    idx.to_csv(subset / "subset_index_eyeglasses.csv", index=False)
+
+    out_root = tmp_path / "processed"
+    rc = main([
+        "--subset-root", str(subset),
+        "--out-root", str(out_root),
+        "--size", "16",
+        "--center-crop",
+        "--compute-stats",
+        "--normalize-01",
+    ])
+    assert rc == 0
+    # Processing summary should reflect at least one skip
+    import json as _json
+    summary_path = out_root / "stats" / "processing_summary.json"
+    st = _json.loads(summary_path.read_text())
+    assert int(st.get("skipped", 0)) >= 1
+    # Skip log should exist and contain entries
+    skipped_csv = out_root / "stats" / "skipped_failed_images.csv"
+    assert skipped_csv.exists()
+    import csv
+    with open(skipped_csv, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+        cols = reader.fieldnames or []
+    for c in ["image_id","split","class_name","src_path","reason"]:
+        assert c in cols
+    assert len(rows) >= 1
+
+
+def test_data_ledger_json_contains_expected_fields(tmp_path: Path):
+    subset = tmp_path / "subset"
+    (subset / "train" / "eyeglasses").mkdir(parents=True, exist_ok=True)
+    _write_rgb(subset / "train" / "eyeglasses" / "a.jpg", size=(16, 16))
+    idx = pd.DataFrame([
+        {"image_id": "a.jpg", "partition_name": "train", "class_name": "eyeglasses", "label": 1, "dest_path": "train/eyeglasses/a.jpg"},
+    ])
+    idx.to_csv(subset / "subset_index_eyeglasses.csv", index=False)
+
+    out_root = tmp_path / "processed"
+    rc = main([
+        "--subset-root", str(subset),
+        "--out-root", str(out_root),
+        "--size", "16",
+        "--center-crop",
+        "--compute-stats",
+        "--normalize-01",
+    ])
+    assert rc == 0
+    ledger_path = out_root / "stats" / "data_ledger.json"
+    assert ledger_path.exists()
+    data = json.loads(ledger_path.read_text())
+    for k in [
+        "size","normalize_01","stats_path","manifest_path","processing_summary_path","counts","randomness_policy","transform_policy"
+    ]:
+        assert k in data
+    # Basic sanity checks
+    assert int(data["size"]) == 16
+    assert bool(data["normalize_01"]) is True
+    assert isinstance(data["counts"].get("num_images", 0), int)
+    assert data["transform_policy"]["resize"]["method"].upper() in ("LANCZOS","BICUBIC")

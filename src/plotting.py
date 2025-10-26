@@ -11,9 +11,6 @@ import pandas as pd
 import numpy as np
 
 
- 
-
-
 def hist_multi(
     arrays: Sequence[np.ndarray],
     bins: int,
@@ -21,17 +18,27 @@ def hist_multi(
     colors: Sequence[str],
     figsize: Tuple[float, float] = (10, 3),
     title: Optional[str] = None,
-) -> None:
+    stacked: bool = False,
+    alpha: float = 0.6,
+    edgecolor: str = "#333",
+    linewidth: float = 0.4,
+    scale_caption: Optional[str] = None,
+) -> "tuple[object, object]":
     import matplotlib.pyplot as plt
 
-    plt.figure(figsize=figsize)
-    for data, label, color in zip(arrays, labels, colors):
-        plt.hist(data, bins=bins, alpha=0.5, color=color, label=label)
+    fig, ax = plt.subplots(figsize=figsize)
+    if stacked:
+        ax.hist(arrays, bins=bins, stacked=True, label=labels, color=colors, alpha=alpha, edgecolor=edgecolor, linewidth=linewidth)
+    else:
+        for data, label, color in zip(arrays, labels, colors):
+            ax.hist(data, bins=bins, alpha=alpha, color=color, label=label, edgecolor=edgecolor, linewidth=linewidth)
     if title:
-        plt.title(title)
-    plt.legend()
+        ax.set_title(title, pad=6)
+    ax.legend(frameon=False)
+    if scale_caption:
+        ax.text(0.0, -0.18, scale_caption, transform=ax.transAxes, fontsize=10, color="#6b7280")
     plt.tight_layout()
-    plt.show()
+    return fig, ax
 
 
 def size_histograms(

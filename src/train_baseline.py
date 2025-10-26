@@ -23,7 +23,17 @@ def train_baseline(model: nn.Module, train_loader: DataLoader, val_loader: DataL
                    device: torch.device, cfg: BaselineConfig) -> Tuple[nn.Module, Dict[str, Any], List[Dict[str, Any]]]:
     if cfg.seed is not None:
         torch.manual_seed(cfg.seed)
-        torch.cuda.manual_seed_all(cfg.seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(cfg.seed)
+    # Determinism settings (MPS-safe): disable cuDNN benchmark on CUDA; enable deterministic where supported
+    try:
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+        # This is a global flag; may raise on unsupported ops; keep in try/except
+        torch.use_deterministic_algorithms(True)
+    except Exception:
+        pass
 
     criterion = nn.CrossEntropyLoss()
     optimizer = _get_optimizer(cfg.optimizer, model.parameters(), cfg.lr, cfg.weight_decay)

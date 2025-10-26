@@ -10,9 +10,11 @@ from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
 import os
 import json
+import hashlib
+import csv
 import numpy as np
 import pandas as pd
-from PIL import Image
+from PIL import Image, ImageOps
 
 
 @dataclass
@@ -39,7 +41,7 @@ def center_square_crop(img: Image.Image) -> Image.Image:
 
 
 def resize_image(img: Image.Image, size: int) -> Image.Image:
-    return img.resize((size, size), Image.BICUBIC)
+    return img.resize((size, size), Image.Resampling.LANCZOS)
 
 
 def write_index(records: List[ImageRecord], out_root: str) -> None:
@@ -97,6 +99,7 @@ def preprocess_subset(
     df = load_subset_index(subset_root)
     records: List[ImageRecord] = []
     arrays: List[np.ndarray] = []
+    manifest_rows: List[Dict[str, object]] = []
 
     for _, r in df.iterrows():
         image_id = str(r["image_id"])  # type: ignore[index]
@@ -109,12 +112,30 @@ def preprocess_subset(
 
         try:
             with Image.open(src_path) as img:
-                img = img.convert("RGB")
+                img = ImageOps.exif_transpose(img).convert("RGB")
                 if center_crop:
                     img = center_square_crop(img)
                 img = resize_image(img, size)
                 img.save(dst_path, quality=95)
-                if compute_stats:
+                # Hash and size for manifest
+                try:
+                    h = hashlib.sha256()
+                    with open(dst_path, "rb") as _f:
+                        for chunk in iter(lambda: _f.read(1024 * 1024), b""):
+                            h.update(chunk)
+                    size_bytes = os.path.getsize(dst_path)
+                    manifest_rows.append({
+                        "image_id": image_id,
+                        "partition_name": split,
+                        "class_name": class_name,
+                        "dest_path": os.path.relpath(dst_path, out_root),
+                        "source_path": os.path.relpath(src_path, out_root) if not os.path.isabs(src_path) else src_path,
+                        "sha256": h.hexdigest(),
+                        "size_bytes": int(size_bytes),
+                    })
+                except Exception:
+                    pass
+                if compute_stats and split == "train":
                     np_img = np.asarray(img, dtype=np.float32)
                     if normalize_01:
                         np_img = np_img / 255.0
@@ -144,6 +165,43 @@ def preprocess_subset(
         "num_images": len(records),
     }
     write_json(os.path.join(out_root, "stats", "processing_summary.json"), summary)
+
+    # Write manifest CSV with hashes and sizes
+    if manifest_rows:
+        stats_dir = os.path.join(out_root, "stats")
+        try:
+            os.makedirs(stats_dir, exist_ok=True)
+            mf = os.path.join(stats_dir, "manifest.csv")
+            with open(mf, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    "image_id","partition_name","class_name","source_path","dest_path","sha256","size_bytes"
+                ])
+                writer.writeheader()
+                writer.writerows(manifest_rows)
+        except Exception:
+            pass
+    # Consolidated data ledger for DP accounting & reproducibility
+    try:
+        ledger = {
+            "size": int(size),
+            "normalize_01": bool(normalize_01),
+            "stats_path": os.path.join("stats", "stats.json"),
+            "manifest_path": os.path.join("stats", "manifest.csv"),
+            "processing_summary_path": os.path.join("stats", "processing_summary.json"),
+            "counts": summary,
+            "randomness_policy": {
+                "worker_seeding": "make_worker_init_fn(base_seed)",
+                "global_seed": "cfg.random_seed or environment",
+                "note": "Per-sample transform randomness should derive from seeded workers"
+            },
+            "transform_policy": {
+                "center_crop": bool(center_crop),
+                "resize": {"side": int(size), "method": "LANCZOS"},
+            },
+        }
+        write_json(os.path.join(out_root, "stats", "data_ledger.json"), ledger)
+    except Exception:
+        pass
     return {"summary": summary, "stats": stats}
 
 

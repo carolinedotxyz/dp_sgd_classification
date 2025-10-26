@@ -26,9 +26,11 @@ import os
 import sys
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
+import hashlib
+import csv
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from tqdm import tqdm
 
 
@@ -161,7 +163,7 @@ def center_crop_to_square(img: Image.Image) -> Image.Image:
 
 
 def resize_image(img: Image.Image, size: int) -> Image.Image:
-    """Resize an image to ``size x size`` using bicubic interpolation.
+    """Resize an image to ``size x size`` using high-quality downsampling.
 
     Args:
         img: Input PIL image.
@@ -170,7 +172,7 @@ def resize_image(img: Image.Image, size: int) -> Image.Image:
     Returns:
         The resized PIL image.
     """
-    return img.resize((size, size), Image.BICUBIC)
+    return img.resize((size, size), Image.Resampling.LANCZOS)
 
 
 def ensure_dir(path: str) -> None:
@@ -186,6 +188,7 @@ def process_image(
     normalize_01: bool,
     mean: Optional[Tuple[float, float, float]],
     std: Optional[Tuple[float, float, float]],
+    return_array: bool = True,
 ) -> Tuple[ImageRecord, Optional[np.ndarray]]:
     """Process a single image and optionally return an array for stats.
 
@@ -207,7 +210,7 @@ def process_image(
         float32 and present only if ``normalize_01`` or stats are requested.
     """
     with Image.open(rec.src_path) as img:
-        img = img.convert("RGB")
+        img = ImageOps.exif_transpose(img).convert("RGB")
         if do_center_crop:
             img = center_crop_to_square(img)
         img = resize_image(img, size)
@@ -228,10 +231,12 @@ def process_image(
         # Save processed image to disk first
         img.save(dst_path, quality=95)
 
-        # Return pixel stats array only if needed for mean/std computation
-        np_img = np.asarray(img, dtype=np.float32)
-        if normalize_01:
-            np_img = np_img / 255.0
+        # Return pixel stats array only if requested (to avoid overhead)
+        np_img: Optional[np.ndarray] = None
+        if return_array:
+            np_img = np.asarray(img, dtype=np.float32)
+            if normalize_01:
+                np_img = np_img / 255.0
         return rec_out, np_img
 
 
@@ -363,6 +368,8 @@ def main(argv: List[str]) -> int:
     processed_records: List[ImageRecord] = []
     train_arrays: List[np.ndarray] = []
     skipped: int = 0
+    skipped_rows: List[Dict[str, str]] = []
+    manifest_rows: List[Dict[str, object]] = []
 
     for rec in tqdm(records, desc="Processing images"):
         try:
@@ -374,12 +381,38 @@ def main(argv: List[str]) -> int:
                 normalize_01=bool(args.normalize_01),
                 mean=None,
                 std=None,
+                return_array=bool(args.compute_stats and rec.split == "train"),
             )
             processed_records.append(rec_out)
+            # Hash and record manifest entry
+            try:
+                h = hashlib.sha256()
+                with open(rec_out.dst_path, "rb") as _f:
+                    for chunk in iter(lambda: _f.read(1024 * 1024), b""):
+                        h.update(chunk)
+                size_bytes = os.path.getsize(rec_out.dst_path)
+                manifest_rows.append({
+                    "image_id": rec_out.image_id,
+                    "partition_name": rec_out.split,
+                    "class_name": rec_out.class_name,
+                    "source_path": os.path.relpath(rec_out.src_path, out_root) if not os.path.isabs(rec_out.src_path) else rec_out.src_path,
+                    "dest_path": os.path.relpath(rec_out.dst_path, out_root),
+                    "sha256": h.hexdigest(),
+                    "size_bytes": int(size_bytes),
+                })
+            except Exception:
+                pass
             if args.compute_stats and rec.split == "train" and arr is not None:
                 train_arrays.append(arr)
-        except Exception:
+        except Exception as e:
             skipped += 1
+            skipped_rows.append({
+                "image_id": rec.image_id,
+                "split": rec.split,
+                "class_name": rec.class_name,
+                "src_path": rec.src_path,
+                "reason": str(e),
+            })
 
     write_index(processed_records, out_root)
 
@@ -399,6 +432,58 @@ def main(argv: List[str]) -> int:
     summary["skipped"] = skipped
     summary_path = os.path.join(out_root, "stats", "processing_summary.json")
     write_stats(summary_path, summary)
+
+    # If any failures, write a CSV log for inspection
+    if skipped_rows:
+        ensure_dir(os.path.join(out_root, "stats"))
+        skipped_csv = os.path.join(out_root, "stats", "skipped_failed_images.csv")
+        try:
+            import csv as _csv
+            with open(skipped_csv, "w", newline="", encoding="utf-8") as f:
+                writer = _csv.DictWriter(f, fieldnames=["image_id", "split", "class_name", "src_path", "reason"])
+                writer.writeheader()
+                writer.writerows(skipped_rows)
+        except Exception:
+            pass
+
+    # Write manifest CSV with hashes and sizes
+    if manifest_rows:
+        stats_dir = os.path.join(out_root, "stats")
+        ensure_dir(stats_dir)
+        mf = os.path.join(stats_dir, "manifest.csv")
+        try:
+            with open(mf, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=[
+                    "image_id","partition_name","class_name","source_path","dest_path","sha256","size_bytes"
+                ])
+                writer.writeheader()
+                writer.writerows(manifest_rows)
+        except Exception:
+            pass
+
+    # Consolidated data ledger JSON
+    try:
+        summary_rel = os.path.join("stats", "processing_summary.json")
+        ledger = {
+            "size": int(args.size),
+            "normalize_01": bool(args.normalize_01),
+            "stats_path": os.path.join("stats", "stats.json"),
+            "manifest_path": os.path.join("stats", "manifest.csv"),
+            "processing_summary_path": summary_rel,
+            "counts": summary,
+            "randomness_policy": {
+                "worker_seeding": "make_worker_init_fn(base_seed)",
+                "global_seed": "cfg.random_seed or environment",
+                "note": "Per-sample transform randomness should derive from seeded workers"
+            },
+            "transform_policy": {
+                "center_crop": bool(args.center_crop),
+                "resize": {"side": int(args.size), "method": "LANCZOS"},
+            },
+        }
+        write_stats(os.path.join(out_root, "stats", "data_ledger.json"), ledger)
+    except Exception:
+        pass
 
     # Concise console report
     print(f"Processed images written to: {out_root}")

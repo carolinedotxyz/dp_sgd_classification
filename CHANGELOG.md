@@ -38,6 +38,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 [10/01/2025]
 - Refactor workflow and enhance documentation: Moved reusable functions to `src/celeba_workflow.py`, added classroom notebook `notebooks/celeba_eyeglasses_workflow.ipynb`, and created accompanying documentation. Relocated legacy notebook and updated README 
 
+[10/26/2025]
+- README: Tightened language; clarified that users must download CelebA and create the subset and processed data in `notebooks/celeba_eyeglasses_workflow.ipynb`; updated training script references and Quick Start examples.
+- Docs: Updated `docs/notebooks/celeba_eyeglasses_workflow.md` to explicitly require running the educational notebook to produce the subset, processed images, and stats, with a brief rationale for the in-notebook approach.
+
 ### Deprecated
 
 ### Removed

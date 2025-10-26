@@ -12,6 +12,7 @@ import json
 from typing import Tuple
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+import torch
 
 
 def make_transforms(mean, std, aug_flip: bool = False, aug_jitter: bool = False):
@@ -48,11 +49,20 @@ def load_stats(stats_path: str):
     """
     with open(stats_path, "r") as f:
         stats = json.load(f)
-    return stats["train_mean"], stats["train_std"]
+    mean = stats["train_mean"]
+    std = stats["train_std"]
+    # Ensure stats are on [0,1] scale to match transforms.ToTensor()
+    if not bool(stats.get("normalize_01", True)):
+        mean = [m / 255.0 for m in mean]
+        std = [s / 255.0 for s in std]
+    return mean, std
 
 
 def build_dataloaders(data_root: str, batch_size: int, num_workers: int,
-                      mean, std, aug_flip: bool = False, aug_jitter: bool = False) -> Tuple[DataLoader, DataLoader, DataLoader]:
+                      mean, std, aug_flip: bool = False, aug_jitter: bool = False,
+                      pin_memory: bool | None = None,
+                      worker_init_fn=None,
+                      generator: torch.Generator | None = None) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Build train/val/test dataloaders for an ImageFolder-based dataset.
 
     Expects directory structure: <data_root>/{train,val,test}/<class_name>/*.jpg
@@ -76,9 +86,21 @@ def build_dataloaders(data_root: str, batch_size: int, num_workers: int,
     val_ds   = datasets.ImageFolder(os.path.join(data_root, "val"),   transform=test_tfms)
     test_ds  = datasets.ImageFolder(os.path.join(data_root, "test"),  transform=test_tfms)
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=num_workers, pin_memory=True)
-    val_loader   = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
-    test_loader  = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=True)
+    if pin_memory is None:
+        pin_memory = bool(torch.cuda.is_available())
+
+    train_loader = DataLoader(
+        train_ds, batch_size=batch_size, shuffle=True, num_workers=num_workers,
+        pin_memory=pin_memory, worker_init_fn=worker_init_fn, generator=generator
+    )
+    val_loader   = DataLoader(
+        val_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+        pin_memory=pin_memory, worker_init_fn=worker_init_fn, generator=generator
+    )
+    test_loader  = DataLoader(
+        test_ds, batch_size=batch_size, shuffle=False, num_workers=num_workers,
+        pin_memory=pin_memory, worker_init_fn=worker_init_fn, generator=generator
+    )
 
     return train_loader, val_loader, test_loader
 

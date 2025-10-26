@@ -37,6 +37,15 @@ def train_dp_sgd(model: nn.Module, train_loader: DataLoader, val_loader: DataLoa
         Tuple of ``(model, metrics)`` where ``metrics`` includes ``test_loss``,
         ``test_acc``, and ``epsilon``.
     """
+    # Determinism settings (MPS-safe): disable cuDNN autotuner on CUDA; enable deterministic where supported
+    try:
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
+    except Exception:
+        pass
+
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 
@@ -109,6 +118,15 @@ def train_dp_sgd_v2(model: nn.Module, train_loader: DataLoader, val_loader: Data
         Tuple of ``(model, metrics)`` where ``metrics`` includes ``test_loss``,
         ``test_acc``, ``epsilon``, and ``best_val_acc``.
     """
+    # Determinism settings (MPS-safe)
+    try:
+        if torch.cuda.is_available():
+            torch.backends.cudnn.benchmark = False
+            torch.backends.cudnn.deterministic = True
+        torch.use_deterministic_algorithms(True)
+    except Exception:
+        pass
+
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
 

@@ -34,7 +34,29 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    # Optional: enable deterministic algorithms when training for strict reproducibility
+    try:
+        torch.use_deterministic_algorithms(True)
+    except Exception:
+        pass
+
+
+def make_worker_init_fn(base_seed: int):
+    """Return a worker_init_fn that seeds Python and NumPy per worker deterministically.
+
+    Args:
+        base_seed: Base integer seed. Each worker will derive a unique seed.
+
+    Returns:
+        A callable suitable for DataLoader(worker_init_fn=...).
+    """
+    def _init_fn(worker_id: int):
+        seed = (base_seed + worker_id * 9973) % (2**32 - 1)
+        random.seed(seed)
+        np.random.seed(seed)
+    return _init_fn
 
 
 def accuracy(logits: torch.Tensor, targets: torch.Tensor) -> float:

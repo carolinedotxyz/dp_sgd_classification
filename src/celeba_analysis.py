@@ -168,6 +168,15 @@ def compute_balance_from_df(df: pd.DataFrame, attributes: list[str]) -> pd.DataF
             row[f"{pname}_pos_frac"] = (npos / stotal) if stotal else 0.0
             row[f"{pname}_neg_frac"] = (nneg / stotal) if stotal else 0.0
         rows.append(row)
-    return pd.DataFrame(rows).sort_values(by=["attribute"]).reset_index(drop=True)
+    out = pd.DataFrame(rows).sort_values(by=["attribute"]).reset_index(drop=True)
+    # Backward-compatible columns: pos_pct mirrors pos_frac (fraction in [0,1])
+    if "pos_frac" in out.columns and "pos_pct" not in out.columns:
+        out["pos_pct"] = out["pos_frac"].astype(float)
+    for pname in ("train", "val", "test"):
+        frac_col = f"{pname}_pos_frac"
+        pct_col = f"{pname}_pos_pct"
+        if frac_col in out.columns and pct_col not in out.columns:
+            out[pct_col] = out[frac_col].astype(float)
+    return out
 
 

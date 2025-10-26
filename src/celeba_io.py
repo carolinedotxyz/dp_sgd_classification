@@ -37,9 +37,10 @@ def write_archive_outputs(summary_all, archive_dir: Path) -> None:
     out_dir = (archive_dir / "balance_plots"); out_dir.mkdir(parents=True, exist_ok=True)
     out_csv = (archive_dir / "celeba_balance_summary.csv")
     summary_all.drop(columns=["display_name","overall_pos_pct"], errors="ignore").to_csv(out_csv, index=False)
+    from src.nb_display import _relpath
     display(HTML(
         f"<div style='margin-top:10px;color:#374151'>Saved: "
-        f"<code>{out_csv}</code> &nbsp; • &nbsp; plots → <code>{out_dir}</code></div>"
+        f"<code>{_relpath(out_csv)}</code> &nbsp; • &nbsp; plots → <code>{_relpath(out_dir)}</code></div>"
     ))
 
 
