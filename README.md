@@ -24,7 +24,7 @@ This repository provides a **complete, educational workflow** for training image
 
 <div align="center">
 
-![Training Dynamics: Baseline vs DP-SGD](docs/assets/training_dynamics_comparison.gif)
+![Training Dynamics: Baseline vs DP-SGD](gif/training_dynamics_comparison.gif)
 
 *Training dynamics comparison: Baseline SGD vs. DP-SGD*
 
