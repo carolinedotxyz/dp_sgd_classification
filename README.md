@@ -226,9 +226,6 @@ If you're new to **Differential Privacy**, **DP-SGD**, or the **CelebA dataset**
 - **"The Algorithmic Foundations of Differential Privacy" (Dwork & Roth)** — canonical introduction  
   [📄 PDF](https://www.cis.upenn.edu/~aaroth/Papers/privacybook.pdf)
 
-- **OpenMined: Differential Privacy Overview** — beginner-friendly conceptual guide  
-  [🌐 Website](https://docs.openmined.org/differential-privacy)
-
 ### DP-SGD and Practical Implementations
 
 - **Original DP-SGD Paper: "Deep Learning with Differential Privacy"**  
