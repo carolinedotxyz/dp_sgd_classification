@@ -1,0 +1,15 @@
+__pycache__/
+.ipynb_checkpoints
+
+# Ignore data folder 
+data/celeba/
+
+# Ignore docs folder
+docs/
+
+# Ignore run result folder 
+runs/
+
+# Ignore images
+images/
+*.png

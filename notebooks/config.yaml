@@ -1,0 +1,137 @@
+# CelebA Eyeglasses Workflow Configuration
+# This file contains all hyperparameters, environment settings, and data configurations
+# for the DP-SGD vs SGD classification experiment.
+
+# Environment and Setup Configuration
+environment:
+  random_seed: 42
+  figure_dpi: 120
+  matplotlib_style: "seaborn-v0_8-whitegrid"
+  matplotlib_style_fallback: "seaborn-whitegrid"
+
+# Dataset Configuration
+dataset:
+  attribute: "Eyeglasses"
+  dataset_name: "eyeglasses_balanced_20k"
+  processed_dataset_name: "eyeglasses_balanced_20k_64"
+  
+  # Data paths (relative to project root)
+  paths:
+    archive_dir: "data/celeba/archive"
+    images_root: "data/celeba/archive/img_align_celeba/img_align_celeba"
+    subsets_dir: "data/celeba/subsets"
+    processed_dir: "data/celeba/processed"
+
+# Subset Configuration
+subset:
+  max_train_per_class: 8000
+  max_val_per_class: 1000
+  max_test_per_class: 1000
+  link_mode: "copy"  # "copy" or "link"
+
+# Preprocessing Configuration
+preprocessing:
+  size: 64
+  center_crop: true
+  normalize_01: true
+  compute_stats: true
+
+# Analysis Configuration
+analysis:
+  plot_top_n_attrs: 20
+  size_sample_max: 5000
+  channel_stats_split: "train"
+  proc_pixel_hist_bins: 50
+
+# Diagnostics Configuration
+diagnostics:
+  target_size: 64
+  visual_sample: 256
+
+# Training Configuration
+training:
+  # Matched Hyperparameter Sweep Grid (identical for both baseline and DP-SGD)
+  # All configurations use the same hyperparameters for fair comparison
+  # Learning rates chosen for AdamW optimizer (appropriate range: 0.0005 to 0.005)
+  matched_sweep_grid:
+    # Pair 1: Medium-high LR, small batch, no regularization
+    - lr: 0.003
+      batch_size: 64
+      weight_decay: 0.0
+    # Pair 2: Medium-high LR, large batch, with regularization
+    - lr: 0.003
+      batch_size: 128
+      weight_decay: 0.0001
+    # Pair 3: Medium LR, small batch, with regularization
+    - lr: 0.001
+      batch_size: 64
+      weight_decay: 0.0001
+    # Pair 4: Medium LR, large batch, no regularization
+    - lr: 0.001
+      batch_size: 128
+      weight_decay: 0.0
+    # Pair 5: Lower LR, small batch, with regularization
+    - lr: 0.0005
+      batch_size: 64
+      weight_decay: 0.0001
+    # Pair 6: Higher LR, small batch, no regularization (tests stability)
+    - lr: 0.005
+      batch_size: 64
+      weight_decay: 0.0
+  
+  # Quick Run Parameters (for fast demonstration)
+  epochs_quick: 5
+  
+  # Longer Run Parameters (for full convergence)
+  epochs_long: 20
+  
+  # Platform-specific settings will be auto-detected
+  aug_flip: true
+  aug_jitter: true
+  aug_rotation: false  # Small random rotation (±10 degrees)
+  rotation_degrees: 10.0
+  
+  # Optimizer: Both SGD baseline and DP-SGD now use AdamW for fair comparison
+  # (AdamW properly handles weight_decay and is compatible with Opacus PrivacyEngine)
+  # Note: sgd_momentum and sgd_nesterov are legacy - not used with AdamW
+  sgd_momentum: 0.9
+  sgd_nesterov: true
+  
+  # Run Management
+  sweep_id_quick: "eyeglasses_baseline_v1_quick"
+  sweep_id_long: "eyeglasses_baseline_v1_long"
+  base_run_dir: "runs/baseline"
+
+# Platform Configuration
+platform:
+  # Auto-detection is enabled by default
+  # Override these settings only if needed
+  force_num_workers: null  # null = auto-detect, or specify a number
+  force_pin_memory: null   # null = auto-detect, or true/false
+  enable_openmp_workaround: null  # null = auto-detect, or true/false
+
+# DP-SGD Configuration
+# Note: Uses the same matched_sweep_grid from training section above
+# Privacy parameters optimized based on exploration results:
+# - noise_multiplier=0.5, max_grad_norm=1.5 provides best balance of learning and privacy
+# - Achieves ~60% accuracy with moderate privacy guarantees (ε≈11)
+dp_sgd:
+  max_grad_norm: 1.5
+  noise_multiplier: 0.5
+  target_delta: 0.00001
+  # Epochs are controlled by training section (epochs_quick, epochs_long)
+  lr: 0.001  # Default/legacy value (actual LR comes from matched_sweep_grid)
+  weight_decay: 0.0  # Default/legacy value (actual wd comes from matched_sweep_grid)
+  label_smoothing: 0.0
+  scheduler: null  # "cosine", "step", or null
+  step_size: 2
+  gamma: 0.5
+  aug_flip: true
+  aug_jitter: false
+  aug_rotation: false  # Small random rotation (±10 degrees)
+  rotation_degrees: 10.0
+  seed: 42
+  output_dir: null
+  sweep_id_quick: "eyeglasses_dp_sgd_v1_quick"
+  sweep_id_long: "eyeglasses_dp_sgd_v1_long"
+  base_run_dir: "runs/dp_sgd"
