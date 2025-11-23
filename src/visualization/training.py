@@ -5,6 +5,7 @@ This module contains functions for creating training curves, progress plots,
 and other visualizations used during and after training experiments.
 """
 
+import os
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -192,7 +193,8 @@ def plot_training_curves(
     
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"📊 Training curves saved to: {save_path}")
+        rel_path = os.path.relpath(save_path)
+        print(f"📊 Training curves saved to: {rel_path}")
     
     plt.show()
     return fig
@@ -378,7 +380,8 @@ def plot_matched_pair_comparison(
     
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"📊 Matched pair comparison saved to: {save_path}")
+        rel_path = os.path.relpath(save_path)
+        print(f"📊 Matched pair comparison saved to: {rel_path}")
     
     plt.show()
     return fig
@@ -520,7 +523,8 @@ def plot_privacy_cost_summary(
     
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"📊 Privacy cost summary saved to: {save_path}")
+        rel_path = os.path.relpath(save_path)
+        print(f"📊 Privacy cost summary saved to: {rel_path}")
     
     plt.show()
     return fig
@@ -689,7 +693,8 @@ def plot_training_dynamics_comparison(
     
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"📊 Training dynamics comparison saved to: {save_path}")
+        rel_path = os.path.relpath(save_path)
+        print(f"📊 Training dynamics comparison saved to: {rel_path}")
     
     plt.show()
     return fig
@@ -820,7 +825,9 @@ def plot_privacy_accuracy_tradeoff(
     
     if save_path:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"📊 Privacy-accuracy trade-off plot saved to: {save_path}")
+        # Convert to relative path for cleaner output
+        rel_path = os.path.relpath(save_path)
+        print(f"📊 Privacy-accuracy trade-off plot saved to: {rel_path}")
     
     plt.show()
     return fig
