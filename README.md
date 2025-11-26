@@ -3,6 +3,8 @@
 ![Status: WIP](https://img.shields.io/badge/status-wip-orange)
 ![Python](https://img.shields.io/badge/python-3.8+-blue.svg)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-ee4c2c.svg)
+[![Medium Article](https://img.shields.io/badge/Medium-My%20Article-black?logo=medium)](https://medium.com/@carolinedotxyz/teaching-vision-models-to-forget-the-true-cost-of-privacy-in-deep-learning-9e4dc775f6e2)
+
 
 # Educational SGD vs. DP-SGD Image Classifier
 ### CelebA — Eyeglasses Attribute Classification
@@ -10,6 +12,10 @@
 **An end-to-end educational workflow for understanding differential privacy in deep learning**
 
 [Overview](#-overview) • [Quick Start](#-quick-start) • [Features](#-features) • [Project Structure](#-project-structure) • [Documentation](#-documentation)
+
+📖 *For a full conceptual walkthrough, see my accompanying Medium article:*  
+[Teaching Vision Models to Forget — The True Cost of Privacy in Deep Learning](https://medium.com/@carolinedotxyz/teaching-vision-models-to-forget-the-true-cost-of-privacy-in-deep-learning-9e4dc775f6e2)
+
 
 </div>
 
